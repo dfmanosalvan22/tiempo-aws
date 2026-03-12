@@ -324,3 +324,148 @@ http://localhost
 ```
 
 ---
+
+## Despliegue en AWS
+
+### Infraestructura utilizada
+- **Servicio:** AWS EC2
+- **Instancia:** t2.micro (Free Tier)
+- **Sistema operativo:** Ubuntu 24.04 LTS
+- **IP elástica:** 34.206.249.154
+- **Dominio:** dfmanosalvan.es (registrado en OVH)
+
+### Paso 1 — Crear la VPC y subred
+En AWS Academy la VPC por defecto no tiene subredes configuradas. Se creó una nueva desde VPC → Crear VPC → seleccionando la opción "VPC y mucho más":
+- CIDR: `10.0.0.0/16`
+- 1 subred pública
+- Sin subredes privadas ni puertas de enlace NAT
+
+### Paso 2 — Crear la instancia EC2
+- AMI: Ubuntu Server 24.04 LTS
+- Tipo: t2.micro
+- Par de claves RSA en formato `.pem` para acceso SSH
+- Grupo de seguridad con reglas de entrada para los puertos 22, 80 y 443
+
+### Paso 3 — Asignar IP elástica
+Se asignó una IP elástica desde EC2 → Red y seguridad → Direcciones IP elásticas y se asoció a la instancia para que la IP no cambie al reiniciar.
+
+### Paso 4 — Instalar Docker
+```bash
+sudo apt update
+sudo apt install -y ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+sudo usermod -aG docker ubuntu
+```
+> Versión instalada: **Docker 29.3.0**
+
+### Paso 5 — Subir el código
+Desde PowerShell en el ordenador local:
+```powershell
+scp -i "ruta/tiempo-key.pem" -r "ruta/tiempo_app_iaw" ubuntu@34.206.249.154:/home/ubuntu/
+```
+
+### Paso 6 — Arreglar permisos y arrancar
+```bash
+cd tiempo_app_iaw
+docker compose up -d --build
+docker compose exec php_app chmod -R 755 /var/www/html
+docker compose exec php_app chown -R www-data:www-data /var/www/html
+```
+
+### Paso 7 — Configurar el dominio en OVH
+En el panel de OVH → Zona DNS se modificaron los registros A:
+- Subdominio `@` → `34.206.249.154`
+- Subdominio `www` → `34.206.249.154`
+
+### Paso 8 — Arranque automático al iniciar la instancia
+```bash
+sudo crontab -e
+```
+Línea añadida:
+```
+@reboot sleep 15 && systemctl restart docker && cd /home/ubuntu/tiempo_app_iaw && /usr/bin/docker compose up -d
+```
+
+---
+
+## Configuración SSL/HTTPS
+
+Se usó **Certbot** con **Let's Encrypt** para obtener un certificado SSL gratuito.
+
+### Instalación de Certbot
+```bash
+sudo apt install -y certbot python3-certbot-apache
+```
+
+### Generación del certificado
+Hay que parar Docker primero para liberar el puerto 80:
+```bash
+docker compose stop
+sudo certbot certonly --standalone -d dfmanosalvan.es -d www.dfmanosalvan.es
+```
+
+El certificado queda en:
+- `/etc/letsencrypt/live/dfmanosalvan.es/fullchain.pem`
+- `/etc/letsencrypt/live/dfmanosalvan.es/privkey.pem`
+
+> Válido hasta el **09/06/2026**. La renovación es automática.
+
+### Configuración de Apache
+Se creó `apache/ssl.conf` con dos VirtualHost:
+- **Puerto 80:** redirige automáticamente a HTTPS
+- **Puerto 443:** sirve la aplicación con el certificado SSL
+
+Los certificados se montan en el contenedor como volumen de solo lectura:
+```yaml
+volumes:
+  - /etc/letsencrypt:/etc/letsencrypt:ro
+```
+
+---
+
+## Problemas conocidos y soluciones
+
+### Error 403 Forbidden al acceder a la web
+**Causa:** Apache no tiene permisos para leer los archivos de `/var/www/html`.
+
+**Solución:**
+```bash
+docker compose exec php_app chmod -R 755 /var/www/html
+docker compose exec php_app chown -R www-data:www-data /var/www/html
+```
+
+### Los puertos no se mapean al reiniciar el laboratorio de AWS Academy
+**Causa:** Docker queda en estado inconsistente al reiniciar la instancia y no mapea correctamente los puertos 80 y 443.
+
+**Solución manual:**
+```bash
+sudo systemctl restart docker
+docker compose up -d
+```
+**Solución permanente:** el cron job `@reboot` descrito en el despliegue lo resuelve automáticamente.
+
+### Puerto 80 ocupado por Apache de la instancia
+**Causa:** Ubuntu trae Apache instalado por defecto y ocupa el puerto 80 antes de que Docker pueda usarlo.
+
+**Solución:**
+```bash
+sudo systemctl stop apache2
+sudo systemctl disable apache2
+```
+
+### La ciudad no se encuentra con una API key recién creada
+**Causa:** Las API keys gratuitas de OpenWeatherMap tardan hasta 2 horas en activarse.
+
+**Solución:** Esperar y volver a intentarlo pasado ese tiempo.
+
+---
+
+## URLs de entrega
+
+- **Repositorio GitHub:** https://github.com/dfmanosalvan22/tiempo-aws
+- **Aplicación:** https://dfmanosalvan.es
