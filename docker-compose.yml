@@ -5,11 +5,13 @@ services:
     container_name: tiempo_php
     ports:
       - "80:80"
+      - "443:443"
     depends_on:
       mariadb:
         condition: service_healthy
     volumes:
       - .:/var/www/html
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     restart: unless-stopped
 
   mariadb:
