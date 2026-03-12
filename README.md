@@ -91,3 +91,86 @@ La ventaja de MVC es que cada parte tiene una responsabilidad clara:
 - Si cambia la lógica, solo tocas el Controlador
 
 ---
+
+## Estructura del proyecto
+
+```
+tiempo_app_iaw/
+├── index.php                          ← Punto de entrada
+├── config.php                         ← Configuración global
+├── Dockerfile                         ← Imagen Docker
+├── docker-compose.yml                 ← Orquestación de contenedores
+├── Controller/
+│   └── ControladorPrincipal.php       ← Controlador principal
+├── DB/
+│   ├── Conexion.php                   ← Conexión PDO a MariaDB
+│   └── bd.sql                         ← Script de creación de la BD
+├── Model/
+│   └── ConsultaDAO.php                ← Operaciones con la BD
+└── View/
+    ├── layout_base.php                ← Cabecera y navegación comunes
+    ├── vista_inicio.php               ← Formulario de búsqueda
+    ├── vista_opciones.php             ← Opciones de consulta
+    ├── vista_actual.php               ← Tiempo actual
+    ├── vista_horas.php                ← Previsión por horas
+    ├── vista_semana.php               ← Previsión semanal
+    └── vista_historial.php            ← Historial de consultas
+```
+
+---
+
+## Explicación de cada archivo
+
+### `index.php`
+Punto de entrada único de la aplicación. Todas las peticiones del navegador pasan por aquí. Su única función es cargar la configuración, cargar el controlador y ejecutarlo. Es intencionadamente muy corto para mantener la separación de responsabilidades del patrón MVC.
+
+### `config.php`
+Contiene todas las constantes de configuración: la API key de OpenWeatherMap y las credenciales de la base de datos. Al centralizarlo en un único archivo, si se necesita cambiar algún valor solo hay que tocarlo aquí.
+
+### `Controller/ControladorPrincipal.php`
+Es el núcleo de la aplicación. Lee el parámetro `?accion=` de la URL y decide qué hacer:
+
+| Acción | Método | Descripción |
+|--------|--------|-------------|
+| `inicio` | `mostrarInicio()` | Muestra el formulario de búsqueda |
+| `buscar` | `buscarCiudad()` | Llama a la API de geocodificación |
+| `actual` | `mostrarActual()` | Llama a la API de tiempo actual |
+| `horas` | `mostrarHoras()` | Llama a la API de previsión por horas |
+| `semana` | `mostrarSemana()` | Llama a la API de previsión semanal |
+| `historial` | `mostrarHistorial()` | Consulta el historial en la BD |
+
+Las llamadas a la API se realizan con **cURL** en lugar de `file_get_contents` porque en Docker `file_get_contents` para URLs externas suele estar bloqueado por la configuración de PHP.
+
+### `DB/Conexion.php`
+Gestiona la conexión a la base de datos usando **PDO** (PHP Data Objects). Implementa el patrón **Singleton**: solo existe una única conexión durante toda la ejecución, evitando abrir múltiples conexiones innecesarias. El constructor es privado para que nadie pueda crear instancias desde fuera, obligando a usar `Conexion::obtener()`.
+
+### `Model/ConsultaDAO.php`
+DAO (Data Access Object): es el único lugar donde se escribe SQL en toda la aplicación. Tiene tres métodos:
+- `guardar()` — registra cada consulta en la BD usando consultas preparadas
+- `obtenerHistorial()` — devuelve todas las consultas ordenadas por fecha
+- `obtenerRanking()` — devuelve las 5 ciudades más consultadas
+
+Usa **consultas preparadas** con `prepare()` y `execute()` para prevenir inyección SQL.
+
+### `View/layout_base.php`
+Contiene el HTML común a todas las páginas interiores: la etiqueta `<head>` con Bootstrap e iconos, y la barra de navegación superior con el logo, el nombre de la ciudad activa y los enlaces a las tres vistas. Todas las vistas interiores lo incluyen con `include`.
+
+### `View/vista_inicio.php`
+Formulario de búsqueda con campo de texto y botón. Si el controlador detecta que la ciudad no existe, muestra un mensaje de error. Tiene su propio HTML completo porque es la única vista que no usa el `layout_base`.
+
+### `View/vista_opciones.php`
+Muestra tres tarjetas con las opciones de consulta disponibles para la ciudad encontrada: tiempo actual, por horas y semanal. Cada tarjeta es un enlace que lleva a la vista correspondiente pasando las coordenadas en la URL.
+
+### `View/vista_actual.php`
+Muestra los datos meteorológicos del momento: temperatura principal con icono, sensación térmica, mínima y máxima, y seis datos adicionales en cuadrícula (humedad, presión, viento, nubosidad, amanecer y atardecer).
+
+### `View/vista_horas.php`
+Muestra una **gráfica de línea** con la temperatura de las próximas 8 franjas horarias (cada 3 horas = 24 horas vista) y una tabla con todos los detalles. La gráfica se genera con QuickChart enviando la configuración en la URL como imagen.
+
+### `View/vista_semana.php`
+Muestra una **gráfica de barras** con la temperatura de cada día de la semana y una tabla con los detalles de cada día. De cada día se toma el registro de las 12:00 como representativo, o el primero disponible si no hay dato de mediodía.
+
+### `View/vista_historial.php`
+Muestra el ranking de las ciudades más consultadas y una tabla con el historial completo de todas las consultas realizadas, con la posibilidad de repetir cualquier consulta anterior directamente.
+
+---
