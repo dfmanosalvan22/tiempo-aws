@@ -34,7 +34,7 @@ La aplicación permite al usuario:
   - **Previsión semanal:** resumen de los próximos 5 días con gráfica
 - Todas las consultas quedan registradas en una base de datos **MariaDB**
 - Página de **historial** con todas las consultas realizadas y ranking de ciudades más consultadas
-- Gráficas generadas con **QuickChart** sin necesidad de JavaScript
+- Gráficas generadas con **QuickChart**
 
 ---
 
@@ -244,7 +244,7 @@ GET /data/2.5/forecast?lat={lat}&lon={lon}&units=metric&lang=es&appid={API_KEY}
 
 ### Gráficas con QuickChart
 
-Las gráficas se generan usando **QuickChart.io**, un servicio gratuito que recibe la configuración del gráfico en la URL y devuelve una imagen PNG. No requiere JavaScript:
+Las gráficas se generan usando **QuickChart.io**, un servicio gratuito que recibe la configuración del gráfico en la URL y devuelve una imagen PNG:
 
 ```php
 $config = json_encode(['type' => 'line', 'data' => [...]]);
@@ -466,6 +466,5 @@ sudo systemctl disable apache2
 ---
 
 ## URLs de entrega
-
-- **Repositorio GitHub:** https://github.com/dfmanosalvan22/tiempo-aws
 - **Aplicación:** https://dfmanosalvan.es
+- **Aplicación:** https://www.dfmanosalvan.es/
