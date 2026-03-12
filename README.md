@@ -174,3 +174,40 @@ Muestra una **gráfica de barras** con la temperatura de cada día de la semana 
 Muestra el ranking de las ciudades más consultadas y una tabla con el historial completo de todas las consultas realizadas, con la posibilidad de repetir cualquier consulta anterior directamente.
 
 ---
+
+## Base de datos
+
+Se utiliza **MariaDB 10.11** con una única tabla llamada `consultas`.
+
+### Diseño de la tabla
+
+```sql
+CREATE TABLE consultas (
+    id             INT AUTO_INCREMENT PRIMARY KEY,
+    ciudad         VARCHAR(100) NOT NULL,
+    pais           VARCHAR(10)  NOT NULL DEFAULT '',
+    latitud        DECIMAL(9,6) NOT NULL,
+    longitud       DECIMAL(9,6) NOT NULL,
+    tipo_consulta  ENUM('actual','horas','semana') NOT NULL,
+    fecha_consulta DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Descripción de los campos
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `id` | INT AUTO_INCREMENT | Identificador único de cada consulta |
+| `ciudad` | VARCHAR(100) | Nombre de la ciudad consultada |
+| `pais` | VARCHAR(10) | Código de país ISO (ej: ES, JP, US) |
+| `latitud` | DECIMAL(9,6) | Latitud obtenida de la API de geocodificación |
+| `longitud` | DECIMAL(9,6) | Longitud obtenida de la API de geocodificación |
+| `tipo_consulta` | ENUM | Tipo de consulta: actual, horas o semana |
+| `fecha_consulta` | DATETIME | Fecha y hora automática al insertar |
+
+La tabla se crea automáticamente la primera vez que arranca el contenedor de MariaDB gracias al volumen montado en `docker-compose.yml`:
+```yaml
+- ./DB/bd.sql:/docker-entrypoint-initdb.d/bd.sql:ro
+```
+
+---
