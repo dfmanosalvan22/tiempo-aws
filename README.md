@@ -211,3 +211,116 @@ La tabla se crea automáticamente la primera vez que arranca el contenedor de Ma
 ```
 
 ---
+
+## API de OpenWeatherMap
+
+Se utilizan tres endpoints de la API gratuita de OpenWeatherMap:
+
+### 1. API de Geocodificación
+Convierte el nombre de una ciudad en coordenadas (latitud y longitud).
+```
+GET /geo/1.0/direct?q={ciudad}&limit=1&appid={API_KEY}
+```
+
+### 2. Tiempo actual
+Devuelve los datos meteorológicos del momento para unas coordenadas.
+```
+GET /data/2.5/weather?lat={lat}&lon={lon}&units=metric&lang=es&appid={API_KEY}
+```
+
+### 3. Previsión por horas y semanal
+Devuelve 40 registros con datos cada 3 horas durante 5 días.
+```
+GET /data/2.5/forecast?lat={lat}&lon={lon}&units=metric&lang=es&appid={API_KEY}
+```
+
+### Parámetros comunes
+
+| Parámetro | Valor | Descripción |
+|-----------|-------|-------------|
+| `units` | `metric` | Temperaturas en °C |
+| `lang` | `es` | Descripciones del tiempo en español |
+| `appid` | clave | API key de OpenWeatherMap |
+
+### Gráficas con QuickChart
+
+Las gráficas se generan usando **QuickChart.io**, un servicio gratuito que recibe la configuración del gráfico en la URL y devuelve una imagen PNG. No requiere JavaScript:
+
+```php
+$config = json_encode(['type' => 'line', 'data' => [...]]);
+$url = 'https://quickchart.io/chart?c=' . urlencode($config);
+// Se usa directamente en un <img src="...">
+```
+
+---
+
+## Docker y docker-compose
+
+La aplicación usa **dos contenedores** que se comunican a través de una red interna de Docker:
+
+### Contenedor `php_app`
+- Imagen base: `php:8.2-apache`
+- Extensiones instaladas: `pdo`, `pdo_mysql`, `curl`
+- Módulos de Apache activados: `ssl`, `rewrite`
+- Expone los puertos 80 y 443
+- Monta el código como volumen para ver cambios sin reconstruir
+
+### Contenedor `mariadb`
+- Imagen: `mariadb:10.11`
+- Ejecuta `bd.sql` automáticamente la primera vez
+- Los datos persisten en un volumen nombrado `datos_mariadb`
+- Tiene un healthcheck que verifica que la BD está lista antes de arrancar PHP
+
+### Comunicación entre contenedores
+Dentro de la red Docker los contenedores se comunican por el nombre del servicio. Por eso en `config.php` el host de la BD es `mariadb` y no `localhost`.
+
+### Comandos útiles
+
+```bash
+# Construir y arrancar
+docker compose up -d --build
+
+# Arrancar sin reconstruir
+docker compose up -d
+
+# Parar y eliminar contenedores
+docker compose down
+
+# Ver estado de los contenedores
+docker compose ps
+
+# Ver logs del contenedor PHP
+docker compose logs php_app
+
+# Arreglar permisos si hay error 403
+docker compose exec php_app chmod -R 755 /var/www/html
+docker compose exec php_app chown -R www-data:www-data /var/www/html
+```
+
+---
+
+## Instalación en local
+
+**1. Clona el repositorio:**
+```bash
+git clone https://github.com/dfmanosalvan22/tiempo-aws.git
+cd tiempo-aws
+```
+
+**2. Añade tu API key en `config.php`:**
+```php
+define('API_KEY', 'TU_API_KEY_AQUI');
+```
+> Consigue una clave gratuita en https://openweathermap.org/api. Tarda hasta 2 horas en activarse.
+
+**3. Arranca los contenedores:**
+```bash
+docker compose up -d --build
+```
+
+**4. Abre el navegador en:**
+```
+http://localhost
+```
+
+---
